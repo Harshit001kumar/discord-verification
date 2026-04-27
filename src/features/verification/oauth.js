@@ -2,6 +2,29 @@ const crypto = require('crypto');
 const config = require('../../config');
 const { createOauthSession, consumeOauthSession } = require('../../db');
 
+async function refreshAccessToken(refreshToken) {
+  const body = new URLSearchParams({
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken
+  });
+
+  const response = await fetch('https://discord.com/api/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body
+  });
+
+  if (!response.ok) {
+    throw new Error(`Token refresh failed (${response.status})`);
+  }
+
+  return response.json();
+}
+
 function createState() {
   return crypto.randomBytes(24).toString('hex');
 }
@@ -31,5 +54,6 @@ function getSessionFromState(state) {
 
 module.exports = {
   buildAuthorizeUrl,
-  getSessionFromState
+  getSessionFromState,
+  refreshAccessToken
 };

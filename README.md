@@ -11,6 +11,8 @@ This project is a production-ready foundation for a premium-style Discord verifi
 - Website OAuth verification (Discord redirect URL compatible)
 - Requires `identify` + `guilds.join` OAuth scopes
 - IP + device fingerprint matching to flag alt accounts
+- Geo enrichment via IP lookup (country, city, region, ISP, ASN, timezone)
+- Static map image included in verification logs when location is available
 - Automatic role assignment only when security checks pass
 - Account age check with configurable threshold
 - Anti-alt basic risk scoring
@@ -23,6 +25,7 @@ This project is a production-ready foundation for a premium-style Discord verifi
   - `/verify-reset-user`
   - `/verify-whitelist`
   - `/verify-blacklist`
+  - `/pull` (restricted by env whitelist)
 - Persistent storage via SQLite
 - Clean modular code structure for custom premium extensions
 
@@ -60,6 +63,7 @@ This project is a production-ready foundation for a premium-style Discord verifi
 - `SESSION_SECRET` – reserved secret for future encrypted sessions
 - `PORT` – web server port (Render provides this automatically)
 - `AUTO_REGISTER_COMMANDS` – set `true` to register slash commands on startup (useful for Render free tier)
+- `PULL_AUTHORIZED_USER_IDS` – comma-separated Discord user IDs allowed to run `/pull`
 
 ## Render Setup
 
@@ -89,10 +93,18 @@ This project is a production-ready foundation for a premium-style Discord verifi
 2. User passes server-side rules/challenge checks.
 3. User is redirected to website OAuth callback.
 4. Bot stores hashed IP/device fingerprint and compares with prior verified users.
-5. If duplicate fingerprint is detected, user is flagged for manual review.
-6. If clean, verified role is granted automatically.
+5. Bot enriches verification logs with geo/network/browser data from IP lookup.
+6. If duplicate fingerprint is detected, user is flagged for manual review.
+7. If clean, verified role is granted automatically.
 
 ## Notes
 
 - This is a full starter with premium-style architecture, not a copy of any proprietary bot.
 - Extend modules under `src/features` to add paid-tier capabilities like web dashboard, OAuth link, AI risk scoring, etc.
+- Geo lookup uses a public IP intelligence endpoint and provides approximate location only.
+
+## Pull Command
+
+- `/pull` attempts to add previously OAuth-authorized users into the server where command is used.
+- It requires successful user OAuth with `guilds.join` so refreshable access tokens are stored.
+- Only users listed in `PULL_AUTHORIZED_USER_IDS` can run it, even if others are administrators.

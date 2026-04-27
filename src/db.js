@@ -81,6 +81,17 @@ CREATE TABLE IF NOT EXISTS fingerprint_index (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS oauth_users (
+  user_id TEXT PRIMARY KEY,
+  username TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  token_type TEXT NOT NULL,
+  scope TEXT,
+  expires_at TEXT,
+  updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_fingerprint_ip ON fingerprint_index (guild_id, ip_hash);
 CREATE INDEX IF NOT EXISTS idx_fingerprint_device ON fingerprint_index (guild_id, device_hash);
 `);
@@ -264,6 +275,40 @@ function getUserFingerprint(guildId, userId) {
   return db.prepare('SELECT * FROM user_fingerprints WHERE guild_id = ? AND user_id = ?').get(guildId, userId);
 }
 
+function upsertOauthUser(userId, data) {
+  db.prepare(`
+    INSERT INTO oauth_users (
+      user_id, username, access_token, refresh_token, token_type, scope, expires_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id)
+    DO UPDATE SET
+      username = excluded.username,
+      access_token = excluded.access_token,
+      refresh_token = excluded.refresh_token,
+      token_type = excluded.token_type,
+      scope = excluded.scope,
+      expires_at = excluded.expires_at,
+      updated_at = excluded.updated_at
+  `).run(
+    userId,
+    data.username || null,
+    data.accessToken,
+    data.refreshToken,
+    data.tokenType || 'Bearer',
+    data.scope || null,
+    data.expiresAt || null,
+    nowIso()
+  );
+}
+
+function getOauthUser(userId) {
+  return db.prepare('SELECT * FROM oauth_users WHERE user_id = ?').get(userId);
+}
+
+function listOauthUsers(limit = 100) {
+  return db.prepare('SELECT * FROM oauth_users ORDER BY updated_at DESC LIMIT ?').all(limit);
+}
+
 module.exports = {
   db,
   getGuildConfig,
@@ -283,5 +328,8 @@ module.exports = {
   consumeOauthSession,
   findFingerprintMatches,
   upsertUserFingerprint,
-  getUserFingerprint
+  getUserFingerprint,
+  upsertOauthUser,
+  getOauthUser,
+  listOauthUsers
 };

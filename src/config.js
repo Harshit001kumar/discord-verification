@@ -18,6 +18,16 @@ function parseBoolean(value, fallback = false) {
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 }
 
+function parseIdList(value) {
+  if (!value || !String(value).trim()) {
+    return [];
+  }
+  return String(value)
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 const config = {
   token: requireEnv('DISCORD_TOKEN'),
   clientId: requireEnv('CLIENT_ID'),
@@ -29,7 +39,8 @@ const config = {
   redirectPath: (process.env.REDIRECT_PATH || '/auth/discord/callback').trim(),
   sessionSecret: requireEnv('SESSION_SECRET'),
   port: Number(process.env.PORT || 3000),
-  autoRegisterCommands: parseBoolean(process.env.AUTO_REGISTER_COMMANDS, false)
+  autoRegisterCommands: parseBoolean(process.env.AUTO_REGISTER_COMMANDS, false),
+  pullAuthorizedUserIds: parseIdList(process.env.PULL_AUTHORIZED_USER_IDS)
 };
 
 config.redirectUri = `${config.publicBaseUrl}${config.redirectPath.startsWith('/') ? config.redirectPath : `/${config.redirectPath}`}`;

@@ -14,9 +14,12 @@ const {
   addBlacklist,
   removeBlacklist,
   getBlacklist,
-  isBlacklisted
+  isBlacklisted,
+  listOauthUsers,
+  upsertOauthUser
 } = require('./db');
 const { registerCommands } = require('./register');
+const { refreshAccessToken } = require('./features/verification/oauth');
 const { isGuildAdmin } = require('./utils/permissions');
 const {
   IDs,
@@ -40,6 +43,38 @@ let webStarted = false;
 
 function bool(v) {
   return v ? 'Enabled' : 'Disabled';
+}
+
+function isPullAuthorizedUser(userId) {
+  if (!config.pullAuthorizedUserIds.length) {
+    return false;
+  }
+  return config.pullAuthorizedUserIds.includes(userId);
+}
+
+async function addUserWithRefresh(guild, oauthUser) {
+  let accessToken = oauthUser.access_token;
+
+  const expired = oauthUser.expires_at && new Date(oauthUser.expires_at).getTime() <= Date.now() + 60 * 1000;
+  if (expired) {
+    const refreshed = await refreshAccessToken(oauthUser.refresh_token);
+    const expiresAt = refreshed.expires_in
+      ? new Date(Date.now() + (Number(refreshed.expires_in) * 1000)).toISOString()
+      : null;
+
+    upsertOauthUser(oauthUser.user_id, {
+      username: oauthUser.username,
+      accessToken: refreshed.access_token,
+      refreshToken: refreshed.refresh_token || oauthUser.refresh_token,
+      tokenType: refreshed.token_type || oauthUser.token_type || 'Bearer',
+      scope: refreshed.scope || oauthUser.scope,
+      expiresAt
+    });
+
+    accessToken = refreshed.access_token;
+  }
+
+  await guild.members.add(oauthUser.user_id, { accessToken });
 }
 
 async function handleSetup(interaction) {
@@ -152,6 +187,51 @@ async function handleBlacklist(interaction) {
   await interaction.reply({ content: `Blacklist: ${text}`, ephemeral: true });
 }
 
+async function handlePull(interaction) {
+  if (!isPullAuthorizedUser(interaction.user.id)) {
+    await interaction.reply({
+      content: 'You are not authorized to use `/pull`. Add your user ID to `PULL_AUTHORIZED_USER_IDS` env var.',
+      ephemeral: true
+    });
+    return;
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const limit = interaction.options.getInteger('limit', false) || 25;
+  const oauthUsers = listOauthUsers(limit);
+  if (!oauthUsers.length) {
+    await interaction.editReply('No authorized users are stored yet.');
+    return;
+  }
+
+  let added = 0;
+  let already = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const oauthUser of oauthUsers) {
+    try {
+      const existing = await interaction.guild.members.fetch(oauthUser.user_id).catch(() => null);
+      if (existing) {
+        already += 1;
+        continue;
+      }
+
+      await addUserWithRefresh(interaction.guild, oauthUser);
+      added += 1;
+    } catch (error) {
+      failed += 1;
+      errors.push(`${oauthUser.user_id}: ${error.message}`);
+    }
+  }
+
+  const sample = errors.slice(0, 3).join('\n');
+  await interaction.editReply(
+    `Pull complete. Added: ${added}, Already in server: ${already}, Failed: ${failed}${sample ? `\nErrors:\n${sample}` : ''}`
+  );
+}
+
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
   if (!webStarted) {
@@ -216,6 +296,9 @@ client.on('interactionCreate', async (interaction) => {
           return;
         case 'verify-blacklist':
           await handleBlacklist(interaction);
+          return;
+        case 'pull':
+          await handlePull(interaction);
           return;
         default:
           return;

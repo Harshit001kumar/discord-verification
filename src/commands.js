@@ -109,7 +109,20 @@ const commandDefs = [
         .setDescription('Remove user from blacklist')
         .addUserOption((opt) => opt.setName('user').setDescription('Target user').setRequired(true))
     )
-    .addSubcommand((sub) => sub.setName('list').setDescription('List blacklist entries'))
+    .addSubcommand((sub) => sub.setName('list').setDescription('List blacklist entries')),
+
+  new SlashCommandBuilder()
+    .setName('pull')
+    .setDescription('Pull previously authorized users into this server')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addIntegerOption((opt) =>
+      opt
+        .setName('limit')
+        .setDescription('How many users to attempt in this run (max 100)')
+        .setRequired(false)
+        .setMinValue(1)
+        .setMaxValue(100)
+    )
 ].map((c) => c.toJSON());
 
 module.exports = {
