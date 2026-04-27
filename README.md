@@ -59,6 +59,7 @@ This project is a production-ready foundation for a premium-style Discord verifi
 - `REDIRECT_PATH` – callback path (default `/auth/discord/callback`)
 - `SESSION_SECRET` – reserved secret for future encrypted sessions
 - `PORT` – web server port (Render provides this automatically)
+- `AUTO_REGISTER_COMMANDS` – set `true` to register slash commands on startup (useful for Render free tier)
 
 ## Render Setup
 
@@ -72,6 +73,15 @@ This project is a production-ready foundation for a premium-style Discord verifi
    Example: `https://my-bot.onrender.com/auth/discord/callback`
 
 5. Ensure bot invite includes permissions for role management and required scopes.
+
+## Health Endpoint
+
+- `GET /health` returns JSON health status of:
+  - Discord gateway readiness
+  - SQLite database availability
+  - OAuth config presence
+  - Web service process
+- Returns HTTP `200` when all checks are healthy, otherwise `503`.
 
 ## Security Flow
 

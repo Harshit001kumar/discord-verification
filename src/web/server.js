@@ -4,7 +4,7 @@ const config = require('../config');
 const { getSessionFromState } = require('../features/verification/oauth');
 const { evaluateFingerprint } = require('../features/verification/fingerprint');
 const { finalizeMemberVerification } = require('../features/verification/flow');
-const { upsertVerificationState } = require('../db');
+const { db, upsertVerificationState } = require('../db');
 const { logEvent } = require('../utils/logger');
 
 function makeCookie(name, value, maxAgeSeconds) {
@@ -58,8 +58,39 @@ function startWebServer(client) {
   const app = express();
   app.set('trust proxy', true);
 
-  app.get('/health', (_req, res) => {
-    res.status(200).send('ok');
+  app.get('/health', async (_req, res) => {
+    const checks = {
+      discord: { ok: false, detail: null },
+      database: { ok: false, detail: null },
+      oauth: { ok: false, detail: null },
+      web: { ok: true, detail: 'express_up' }
+    };
+
+    try {
+      checks.discord.ok = !!client.isReady();
+      checks.discord.detail = checks.discord.ok ? `bot:${client.user?.tag || 'ready'}` : 'bot_not_ready';
+    } catch (error) {
+      checks.discord.detail = error.message;
+    }
+
+    try {
+      db.prepare('SELECT 1 AS ok').get();
+      checks.database.ok = true;
+      checks.database.detail = 'sqlite_ok';
+    } catch (error) {
+      checks.database.detail = error.message;
+    }
+
+    checks.oauth.ok = Boolean(config.clientId && config.clientSecret && config.redirectUri);
+    checks.oauth.detail = checks.oauth.ok ? config.redirectUri : 'oauth_env_missing';
+
+    const allHealthy = Object.values(checks).every((item) => item.ok);
+
+    res.status(allHealthy ? 200 : 503).json({
+      status: allHealthy ? 'healthy' : 'degraded',
+      timestamp: new Date().toISOString(),
+      checks
+    });
   });
 
   app.get(config.redirectPath, async (req, res) => {

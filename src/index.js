@@ -158,6 +158,16 @@ client.once('ready', () => {
     startWebServer(client);
     webStarted = true;
   }
+
+  if (config.autoRegisterCommands) {
+    registerCommands()
+      .then(() => {
+        console.log('Auto command registration completed.');
+      })
+      .catch((error) => {
+        console.error('Auto command registration failed:', error.message);
+      });
+  }
 });
 
 client.on('guildMemberAdd', async (member) => {

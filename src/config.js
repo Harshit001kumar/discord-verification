@@ -11,6 +11,13 @@ function requireEnv(name) {
   return value.trim();
 }
 
+function parseBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 const config = {
   token: requireEnv('DISCORD_TOKEN'),
   clientId: requireEnv('CLIENT_ID'),
@@ -21,7 +28,8 @@ const config = {
   clientSecret: requireEnv('DISCORD_CLIENT_SECRET'),
   redirectPath: (process.env.REDIRECT_PATH || '/auth/discord/callback').trim(),
   sessionSecret: requireEnv('SESSION_SECRET'),
-  port: Number(process.env.PORT || 3000)
+  port: Number(process.env.PORT || 3000),
+  autoRegisterCommands: parseBoolean(process.env.AUTO_REGISTER_COMMANDS, false)
 };
 
 config.redirectUri = `${config.publicBaseUrl}${config.redirectPath.startsWith('/') ? config.redirectPath : `/${config.redirectPath}`}`;
