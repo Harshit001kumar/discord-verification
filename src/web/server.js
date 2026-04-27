@@ -345,6 +345,18 @@ void main() {
 </html>`;
 }
 
+function maskIp(rawIp) {
+  const ip = String(rawIp || 'Unknown');
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+    const parts = ip.split('.');
+    return `${parts[0]}.${parts[1]}.*.*`;
+  }
+  if (ip.includes(':')) {
+    return `${ip.split(':').slice(0, 2).join(':')}:*:*`;
+  }
+  return 'Unknown';
+}
+
 function makeCookie(name, value, maxAgeSeconds) {
   const sig = crypto
     .createHmac('sha256', config.sessionSecret)
@@ -492,6 +504,7 @@ function startWebServer(client) {
         ? `${fp.geo.city}, ${fp.geo.region}, ${fp.geo.country}`
         : 'Unavailable';
       const mapUrl = fp.locationMapUrl || 'Unavailable';
+      const maskedIp = maskIp(fp.rawIp);
 
       if (fp.duplicateUsers.length > 0) {
         upsertVerificationState(guild.id, member.id, {
@@ -524,7 +537,7 @@ function startWebServer(client) {
             { label: 'Reason', value: 'Matched existing security fingerprint' },
             { label: 'User', value: `${discordUser.username}#${discordUser.discriminator || '0'}` },
             { label: 'Server', value: guild.name },
-            { label: 'Country', value: fp.geo?.country || 'Unknown' },
+            { label: 'IP', value: maskedIp },
             { label: 'Browser', value: fp.browser || 'Unknown' }
           ]
         }));
@@ -555,9 +568,8 @@ function startWebServer(client) {
         details: [
           { label: 'Account', value: `${discordUser.username}#${discordUser.discriminator || '0'}` },
           { label: 'Server', value: guild.name },
-          { label: 'Country', value: fp.geo?.country || 'Unknown' },
-          { label: 'City', value: fp.geo?.city || 'Unknown' },
-          { label: 'Network', value: fp.geo?.isp || 'Unknown' },
+          { label: 'Session Security', value: fp.duplicateUsers.length ? 'Review Required' : 'Passed' },
+          { label: 'IP', value: maskedIp },
           { label: 'Browser', value: fp.browser || 'Unknown' }
         ]
       }));

@@ -5,7 +5,10 @@ async function logEvent(guild, title, fields = [], color = 0x2b2d31, options = {
   const cfg = getGuildConfig(guild.id);
   if (!cfg.log_channel_id) return;
 
-  const channel = guild.channels.cache.get(cfg.log_channel_id);
+  let channel = guild.channels.cache.get(cfg.log_channel_id);
+  if (!channel) {
+    channel = await guild.channels.fetch(cfg.log_channel_id).catch(() => null);
+  }
   if (!channel || !channel.isTextBased()) return;
 
   const embed = new EmbedBuilder()
@@ -26,7 +29,9 @@ async function logEvent(guild, title, fields = [], color = 0x2b2d31, options = {
     embed.setFooter({ text: options.footer });
   }
 
-  await channel.send({ embeds: [embed] }).catch(() => {});
+  await channel.send({ embeds: [embed] }).catch((error) => {
+    console.error(`Failed to send log event (${title}):`, error.message);
+  });
 }
 
 module.exports = {

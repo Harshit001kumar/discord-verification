@@ -8,9 +8,44 @@ function sha256(input) {
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string' && forwarded.length > 0) {
-    return forwarded.split(',')[0].trim();
+    return normalizeIp(forwarded.split(',')[0].trim());
   }
-  return req.socket.remoteAddress || '0.0.0.0';
+  return normalizeIp(req.socket.remoteAddress || '0.0.0.0');
+}
+
+function normalizeIp(raw) {
+  if (!raw) return '0.0.0.0';
+  let ip = String(raw).trim();
+
+  if (ip.startsWith('::ffff:')) {
+    ip = ip.slice(7);
+  }
+
+  if (ip.startsWith('[') && ip.includes(']')) {
+    ip = ip.slice(1, ip.indexOf(']'));
+  }
+
+  const ipv4PortMatch = ip.match(/^(\d+\.\d+\.\d+\.\d+):(\d+)$/);
+  if (ipv4PortMatch) {
+    ip = ipv4PortMatch[1];
+  }
+
+  return ip;
+}
+
+function isPrivateIp(ip) {
+  if (!ip) return true;
+  if (ip === '::1' || ip === '127.0.0.1' || ip === '0.0.0.0') return true;
+  if (ip.startsWith('10.')) return true;
+  if (ip.startsWith('192.168.')) return true;
+  if (ip.startsWith('169.254.')) return true;
+  if (ip.startsWith('172.')) {
+    const parts = ip.split('.');
+    const second = Number(parts[1]);
+    if (second >= 16 && second <= 31) return true;
+  }
+  if (ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80:')) return true;
+  return false;
 }
 
 function getDeviceSignature(req) {
@@ -31,7 +66,7 @@ function guessBrowser(userAgent) {
 }
 
 async function lookupGeo(rawIp) {
-  if (!rawIp || rawIp === '0.0.0.0' || rawIp.includes('127.0.0.1') || rawIp === '::1') {
+  if (!rawIp || isPrivateIp(rawIp)) {
     return null;
   }
 
@@ -51,6 +86,26 @@ async function lookupGeo(rawIp) {
       org: data.connection?.org || 'Unknown',
       asn: data.connection?.asn || 'Unknown',
       timezone: data.timezone?.id || 'Unknown'
+    };
+  } catch (_error) {
+  }
+
+  try {
+    const fallback = await fetch(`https://ipapi.co/${encodeURIComponent(rawIp)}/json/`);
+    if (!fallback.ok) return null;
+    const data = await fallback.json();
+    if (data?.error) return null;
+    return {
+      country: data.country_name || 'Unknown',
+      countryCode: data.country_code || 'XX',
+      region: data.region || 'Unknown',
+      city: data.city || 'Unknown',
+      latitude: typeof data.latitude === 'number' ? data.latitude : null,
+      longitude: typeof data.longitude === 'number' ? data.longitude : null,
+      isp: data.org || 'Unknown',
+      org: data.org || 'Unknown',
+      asn: data.asn || 'Unknown',
+      timezone: data.timezone || 'Unknown'
     };
   } catch (_error) {
     return null;

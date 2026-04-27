@@ -30,6 +30,7 @@ const {
   handleRulesAccepted,
   handleChallengeSubmit
 } = require('./features/verification/flow');
+const { logEvent } = require('./utils/logger');
 const { startWebServer } = require('./web/server');
 
 const client = new Client({
@@ -227,6 +228,15 @@ async function handlePull(interaction) {
   }
 
   const sample = errors.slice(0, 3).join('\n');
+  await logEvent(interaction.guild, 'Pull Command Executed', [
+    { name: 'Triggered By', value: `<@${interaction.user.id}>`, inline: true },
+    { name: 'Added', value: String(added), inline: true },
+    { name: 'Already In Server', value: String(already), inline: true },
+    { name: 'Failed', value: String(failed), inline: true }
+  ], 0x38bdf8, {
+    description: 'Bulk user pull attempted using stored OAuth tokens.'
+  });
+
   await interaction.editReply(
     `Pull complete. Added: ${added}, Already in server: ${already}, Failed: ${failed}${sample ? `\nErrors:\n${sample}` : ''}`
   );
@@ -258,6 +268,10 @@ client.on('guildMemberAdd', async (member) => {
   const blacklisted = isBlacklisted(member.guild.id, member.id);
   if (blacklisted) {
     await member.kick('User is blacklisted from verification').catch(() => {});
+    await logEvent(member.guild, 'Blacklisted User Auto-Kicked', [
+      { name: 'User', value: `${member.user.tag} (${member.id})` },
+      { name: 'Reason', value: blacklisted.reason || 'blacklisted' }
+    ], 0xef4444);
   }
 });
 
