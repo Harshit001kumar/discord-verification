@@ -11,6 +11,7 @@ async function logEvent(guild, title, fields = [], color = 0x2b2d31, options = {
   }
   if (!channel || !channel.isTextBased()) return;
 
+  const guildIcon = guild.iconURL({ size: 64 });
   const embed = new EmbedBuilder()
     .setColor(color)
     .setTitle(title)
@@ -27,6 +28,11 @@ async function logEvent(guild, title, fields = [], color = 0x2b2d31, options = {
   }
   if (options.footer) {
     embed.setFooter({ text: options.footer });
+  } else {
+    embed.setFooter({ text: 'Discord Verify' });
+  }
+  if (guildIcon) {
+    embed.setThumbnail(guildIcon);
   }
 
   await channel.send({ embeds: [embed] }).catch((error) => {

@@ -8,31 +8,35 @@ const { db, upsertVerificationState, upsertOauthUser } = require('../db');
 const { logEvent } = require('../utils/logger');
 
 const pageStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap');
   :root {
-    --bg: #0f172a;
-    --bg-accent: #111827;
-    --card: #111827;
-    --text: #e5e7eb;
-    --muted: #94a3b8;
-    --ok: #22c55e;
+    --bg: #0b1418;
+    --bg-accent: #0f1c22;
+    --card: rgba(12, 18, 24, 0.92);
+    --text: #e6edf3;
+    --muted: #9fb0bd;
+    --ok: #14b8a6;
     --warn: #f59e0b;
     --err: #ef4444;
-    --brand: #38bdf8;
-    --ring: rgba(56, 189, 248, 0.35);
+    --brand: #2dd4bf;
+    --ring: rgba(45, 212, 191, 0.35);
+    --accent: var(--brand);
+    --font-display: "Space Grotesk", "Trebuchet MS", "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-family: var(--font-body);
     color: var(--text);
     background:
-      radial-gradient(1200px 500px at -10% -20%, #1d4ed8 0%, transparent 55%),
-      radial-gradient(1000px 460px at 110% 120%, #0ea5e9 0%, transparent 55%),
-      linear-gradient(145deg, var(--bg), var(--bg-accent));
+      radial-gradient(900px 520px at 10% -15%, rgba(45, 212, 191, 0.18) 0%, transparent 60%),
+      radial-gradient(960px 520px at 110% 120%, rgba(245, 158, 11, 0.16) 0%, transparent 55%),
+      linear-gradient(155deg, var(--bg), var(--bg-accent));
     min-height: 100vh;
     display: grid;
     place-items: center;
-    padding: 24px;
+    padding: 26px;
     overflow: hidden;
     position: relative;
   }
@@ -42,62 +46,183 @@ const pageStyles = `
     width: 100%;
     height: 100%;
     z-index: 0;
+    opacity: 0.35;
+    mix-blend-mode: screen;
     pointer-events: none;
   }
+  .orb {
+    position: fixed;
+    width: 360px;
+    height: 360px;
+    border-radius: 50%;
+    filter: blur(0px);
+    opacity: 0.45;
+    z-index: 1;
+    pointer-events: none;
+    animation: drift 12s ease-in-out infinite;
+  }
+  .orb-a {
+    top: -140px;
+    left: -120px;
+    background: radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.55), transparent 70%);
+  }
+  .orb-b {
+    bottom: -160px;
+    right: -120px;
+    background: radial-gradient(circle at 40% 40%, rgba(251, 191, 36, 0.55), transparent 70%);
+    animation-delay: -4s;
+  }
   .card {
-    width: min(760px, 100%);
-    background: rgba(17, 24, 39, 0.9);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 18px;
-    box-shadow: 0 20px 45px rgba(2, 6, 23, 0.5);
+    width: min(820px, 100%);
+    background: var(--card);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 20px;
+    box-shadow: 0 30px 60px rgba(2, 6, 23, 0.6);
     overflow: hidden;
-    animation: rise 280ms ease;
+    animation: cardIn 360ms ease;
+    position: relative;
+    z-index: 2;
+    backdrop-filter: blur(14px) saturate(120%);
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(140deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(560px 280px at 0% 0%, var(--accent) 0%, transparent 70%);
+    opacity: 0.15;
+    pointer-events: none;
+  }
+  @keyframes cardIn {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes drift {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(18px); }
+  }
+  .head {
+    padding: 24px 28px 18px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    display: grid;
+    gap: 10px;
     position: relative;
     z-index: 1;
   }
-  @keyframes rise {
-    from { transform: translateY(8px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-  .head {
-    padding: 18px 22px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  .head-row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    justify-content: space-between;
+    gap: 12px;
   }
-  .dot {
-    width: 10px;
-    height: 10px;
+  .brand {
+    font-size: 0.72rem;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
     border-radius: 999px;
-    background: currentColor;
-    box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 20%, transparent);
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    font-size: 0.78rem;
+    color: var(--text);
   }
-  .title { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.2px; }
-  .body { padding: 22px; display: grid; gap: 16px; }
-  .msg { line-height: 1.6; color: var(--text); }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 6px rgba(45, 212, 191, 0.2);
+  }
+  .title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    font-family: var(--font-display);
+  }
+  .body {
+    padding: 22px 28px 26px;
+    display: grid;
+    gap: 18px;
+    position: relative;
+    z-index: 1;
+  }
+  .msg {
+    line-height: 1.65;
+    color: var(--text);
+    font-size: 1.02rem;
+  }
   .meta {
     display: grid;
-    gap: 10px;
+    gap: 12px;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   }
   .tile {
-    background: rgba(15, 23, 42, 0.65);
+    background: linear-gradient(160deg, rgba(15, 23, 42, 0.7), rgba(9, 14, 18, 0.7));
     border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    animation: fadeUp 380ms ease both;
   }
-  .k { font-size: 0.76rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
-  .v { margin-top: 4px; font-size: 0.95rem; font-weight: 600; word-break: break-word; }
-  .footer {
-    border-top: 1px solid rgba(148, 163, 184, 0.18);
-    padding: 14px 22px;
+  .tile:nth-child(2) { animation-delay: 40ms; }
+  .tile:nth-child(3) { animation-delay: 80ms; }
+  .tile:nth-child(4) { animation-delay: 120ms; }
+  .tile:nth-child(5) { animation-delay: 160ms; }
+  .tile:nth-child(6) { animation-delay: 200ms; }
+  @keyframes fadeUp {
+    from { transform: translateY(6px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .k {
+    font-size: 0.72rem;
     color: var(--muted);
-    font-size: 0.86rem;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+  .v {
+    margin-top: 6px;
+    font-size: 0.98rem;
+    font-weight: 600;
+    word-break: break-word;
+  }
+  .footer {
+    border-top: 1px solid rgba(148, 163, 184, 0.16);
+    padding: 14px 28px 18px;
+    color: var(--muted);
+    font-size: 0.84rem;
     display: flex;
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+  }
+  @media (max-width: 640px) {
+    body { padding: 18px; }
+    .head, .body, .footer { padding-left: 20px; padding-right: 20px; }
+    .title { font-size: 1.3rem; }
+    .status { padding: 5px 10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card, .tile, .orb { animation: none; }
   }
 `;
 
@@ -117,7 +242,14 @@ function renderPage({ title, tone, message, details = [] }) {
     err: '#ef4444',
     info: '#38bdf8'
   };
+  const toneLabelMap = {
+    ok: 'Verified',
+    warn: 'Review',
+    err: 'Action Required',
+    info: 'Update'
+  };
   const color = colorMap[tone] || colorMap.info;
+  const statusLabel = toneLabelMap[tone] || toneLabelMap.info;
   const tiles = details
     .filter((x) => x.value !== undefined && x.value !== null && x.value !== '')
     .map((x) => `
@@ -138,9 +270,17 @@ function renderPage({ title, tone, message, details = [] }) {
 </head>
 <body>
   <canvas id="shader-bg" class="bg-canvas" aria-hidden="true"></canvas>
-  <main class="card">
-    <section class="head" style="color:${color}">
-      <span class="dot" aria-hidden="true"></span>
+  <div class="orb orb-a" aria-hidden="true"></div>
+  <div class="orb orb-b" aria-hidden="true"></div>
+  <main class="card" style="--accent:${color}">
+    <section class="head">
+      <div class="head-row">
+        <div class="brand">Discord Verify</div>
+        <div class="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>${escapeHtml(statusLabel)}</span>
+        </div>
+      </div>
       <div class="title">${escapeHtml(title)}</div>
     </section>
     <section class="body">
@@ -163,7 +303,7 @@ precision highp float;
 uniform vec2 iResolution;
 uniform float iTime;
 
-const float overallSpeed = 0.2;
+  const float overallSpeed = 0.16;
 const float gridSmoothWidth = 0.015;
 const float axisWidth = 0.05;
 const float majorLineWidth = 0.025;
@@ -172,7 +312,7 @@ const float majorLineFrequency = 5.0;
 const float minorLineFrequency = 1.0;
 const vec4 gridColor = vec4(0.5);
 const float scale = 5.0;
-const vec4 lineColor = vec4(0.4, 0.2, 0.8, 1.0);
+  const vec4 lineColor = vec4(0.2, 0.8, 0.6, 1.0);
 const float minLineWidth = 0.01;
 const float maxLineWidth = 0.2;
 const float lineSpeed = 1.0 * overallSpeed;
@@ -223,8 +363,8 @@ void main() {
   space.x += random(space.y * warpFrequency + iTime * warpSpeed + 2.0) * warpAmplitude * horizontalFade;
 
   vec4 lines = vec4(0.0);
-  vec4 bgColor1 = vec4(0.1, 0.1, 0.3, 1.0);
-  vec4 bgColor2 = vec4(0.3, 0.1, 0.5, 1.0);
+  vec4 bgColor1 = vec4(0.04, 0.1, 0.12, 1.0);
+  vec4 bgColor2 = vec4(0.08, 0.12, 0.1, 1.0);
 
   for(int l = 0; l < linesPerGroup; l++) {
     float normalizedLineIndex = float(l) / float(linesPerGroup);

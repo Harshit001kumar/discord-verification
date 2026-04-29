@@ -86,7 +86,7 @@ async function beginVerification(interaction) {
 
   if (risk.level === 'high') {
     await interaction.reply({
-      content: 'Your account requires manual review by staff. A ticket has been suggested in logs.',
+      content: 'Manual review required. A staff member will review your verification shortly.',
       ephemeral: true
     });
     await logEvent(guild, 'Manual Review Required', [
@@ -99,9 +99,14 @@ async function beginVerification(interaction) {
 
   if (cfg.require_rules_ack) {
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(0x38bdf8)
       .setTitle('Rules Confirmation')
       .setDescription('Please confirm you have read and will follow the server rules to continue.')
+      .addFields(
+        { name: 'Next Step', value: 'Quick security check', inline: true },
+        { name: 'Estimated Time', value: '20-30 seconds', inline: true },
+        { name: 'Why This Matters', value: 'Keeps the community secure and reduces spam.', inline: true }
+      )
       .setFooter({ text: 'Step 1/2' });
 
     await interaction.reply({ embeds: [embed], components: [buildRulesRow()], ephemeral: true });
@@ -118,7 +123,7 @@ async function handleRulesAccepted(interaction) {
 
 async function showChallenge(interaction, cfg, updateMessage = false) {
   if (!cfg.require_challenge) {
-    await sendWebsiteStep(interaction, 'Challenge skipped by configuration. Continue on website.');
+    await sendWebsiteStep(interaction, 'Challenge skipped by configuration. Continue in the secure portal.');
     return;
   }
 
@@ -147,7 +152,7 @@ async function handleChallengeSubmit(interaction) {
   const state = getVerificationState(interaction.guild.id, interaction.user.id);
 
   if (!expected) {
-    await interaction.reply({ content: 'Challenge expired. Please start again.', ephemeral: true });
+    await interaction.reply({ content: 'Security check expired. Please start verification again.', ephemeral: true });
     return;
   }
 
@@ -159,7 +164,7 @@ async function handleChallengeSubmit(interaction) {
       last_reason: 'challenge_failed'
     });
 
-    await interaction.reply({ content: 'Incorrect challenge answer. Please retry verification.', ephemeral: true });
+    await interaction.reply({ content: 'Incorrect answer. Please retry verification.', ephemeral: true });
     await logEvent(interaction.guild, 'Challenge Failed', [
       { name: 'User', value: `<@${interaction.user.id}>`, inline: true },
       { name: 'Attempts', value: String(attempts), inline: true }
@@ -176,7 +181,7 @@ async function handleChallengeSubmit(interaction) {
     return;
   }
 
-  await sendWebsiteStep(interaction, 'Challenge passed. Continue on website to finish verification.');
+  await sendWebsiteStep(interaction, 'Security check passed. Continue in the secure portal to finish verification.');
 }
 
 async function sendWebsiteStep(interaction, message) {
@@ -208,10 +213,14 @@ async function finishSuccess(guild, member, cfg, interaction, reason) {
     last_reason: reason
   });
 
+  const completePayload = {
+    content: 'Verification complete. Welcome to the server!',
+    ephemeral: true
+  };
   if (interaction.isModalSubmit()) {
-    await interaction.reply({ content: 'Verification complete. Welcome!', ephemeral: true });
+    await interaction.reply(completePayload);
   } else {
-    await interaction.followUp({ content: 'Verification complete. Welcome!', ephemeral: true });
+    await interaction.followUp(completePayload);
   }
 
   await logEvent(guild, 'User Verified', [

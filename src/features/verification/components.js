@@ -18,7 +18,8 @@ function buildStartVerificationRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(IDs.START_VERIFY)
-      .setLabel('Start Verification')
+      .setLabel('Begin Verification')
+      .setEmoji('🛡️')
       .setStyle(ButtonStyle.Success)
   );
 }
@@ -26,7 +27,8 @@ function buildStartVerificationRow() {
 function buildWebsiteVerifyRow(url) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setLabel('Verify via Website')
+      .setLabel('Open Verification Portal')
+      .setEmoji('🔒')
       .setStyle(ButtonStyle.Link)
       .setURL(url)
   );
@@ -36,7 +38,8 @@ function buildRulesRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(IDs.ACCEPT_RULES)
-      .setLabel('I Accept the Rules')
+      .setLabel('Accept Rules and Continue')
+      .setEmoji('✅')
       .setStyle(ButtonStyle.Primary)
   );
 }
@@ -44,15 +47,15 @@ function buildRulesRow() {
 function buildChallengeModal(question) {
   const input = new TextInputBuilder()
     .setCustomId(IDs.CHALLENGE_ANSWER)
-    .setLabel(`Solve: ${question}`)
-    .setPlaceholder('Type answer')
+    .setLabel(`Answer: ${question}`)
+    .setPlaceholder('Enter the result')
     .setStyle(TextInputStyle.Short)
     .setRequired(true)
     .setMaxLength(8);
 
   return new ModalBuilder()
     .setCustomId(IDs.CHALLENGE_MODAL)
-    .setTitle('Verification Challenge')
+    .setTitle('Security Check')
     .addComponents(new ActionRowBuilder().addComponents(input));
 }
 

@@ -92,11 +92,24 @@ async function handleSetup(interaction) {
     enabled: 1
   });
 
+  const guildIcon = interaction.guild.iconURL({ size: 128 });
   const panel = new EmbedBuilder()
-    .setColor(0x57f287)
-    .setTitle('Server Verification')
-    .setDescription('Click the button below to start verification. You will complete the final step on the secure website.')
-    .setFooter({ text: 'Premium verification flow' });
+    .setColor(0x2dd4bf)
+    .setTitle('Secure Server Verification')
+    .setDescription(
+      'Verify in two quick steps to unlock full access.\n'
+      + '1) Confirm the server rules\n'
+      + '2) Finish in the secure portal'
+    )
+    .addFields(
+      { name: 'Estimated Time', value: 'Under 60 seconds', inline: true },
+      { name: 'What You Need', value: 'Discord account + browser', inline: true },
+      { name: 'Privacy', value: 'We only store what is required', inline: true }
+    )
+    .setFooter({ text: 'Protection powered by Discord Verify' });
+  if (guildIcon) {
+    panel.setThumbnail(guildIcon);
+  }
 
   await verificationChannel.send({ embeds: [panel], components: [buildStartVerificationRow()] });
   await interaction.reply({ content: 'Verification configured and panel posted.', ephemeral: true });
@@ -105,8 +118,9 @@ async function handleSetup(interaction) {
 async function handleVerifyConfig(interaction) {
   const cfg = getGuildConfig(interaction.guild.id);
   const embed = new EmbedBuilder()
-    .setColor(0x5865f2)
+    .setColor(0x38bdf8)
     .setTitle('Verification Configuration')
+    .setDescription('Live status of the verification system for this server.')
     .addFields(
       { name: 'System', value: bool(!!cfg.enabled), inline: true },
       { name: 'Rules Ack', value: bool(!!cfg.require_rules_ack), inline: true },
@@ -117,7 +131,11 @@ async function handleVerifyConfig(interaction) {
       { name: 'Unverified Role', value: cfg.unverified_role_id ? `<@&${cfg.unverified_role_id}>` : 'Not set', inline: true },
       { name: 'Verification Channel', value: cfg.verification_channel_id ? `<#${cfg.verification_channel_id}>` : 'Not set', inline: true },
       { name: 'Log Channel', value: cfg.log_channel_id ? `<#${cfg.log_channel_id}>` : 'Not set', inline: true }
-    );
+    )
+    .setFooter({ text: 'Use /verify-security to update settings' });
+  if (guildIcon) {
+    embed.setThumbnail(guildIcon);
+  }
 
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
