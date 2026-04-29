@@ -5,17 +5,20 @@ function sha256(input) {
   return crypto.createHash('sha256').update(input).digest('hex');
 }
 
-function getClientIp(req) {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
-    return normalizeIp(forwarded.split(',')[0].trim());
-  }
-  return normalizeIp(req.socket.remoteAddress || '0.0.0.0');
-}
+const CLIENT_IP_HEADERS = [
+  'cf-connecting-ip',
+  'x-real-ip',
+  'x-client-ip',
+  'true-client-ip',
+  'fastly-client-ip',
+  'x-forwarded-for'
+];
 
 function normalizeIp(raw) {
-  if (!raw) return '0.0.0.0';
+  if (!raw) return '';
   let ip = String(raw).trim();
+
+  if (!ip || ip === 'unknown' || ip === '-') return '';
 
   if (ip.startsWith('::ffff:')) {
     ip = ip.slice(7);
@@ -33,9 +36,72 @@ function normalizeIp(raw) {
   return ip;
 }
 
+function extractForwardedFor(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap(extractForwardedFor);
+  }
+  if (typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function extractForwardedHeader(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap(extractForwardedHeader);
+  }
+  if (typeof value !== 'string') return [];
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .map((part) => {
+      const match = part.match(/for=([^;]+)/i);
+      if (!match) return '';
+      return match[1].replace(/^"|"$/g, '');
+    })
+    .filter(Boolean);
+}
+
+function pickClientIp(candidates) {
+  const normalized = candidates
+    .map(normalizeIp)
+    .filter(Boolean);
+
+  if (!normalized.length) return '0.0.0.0';
+  const publicIp = normalized.find((ip) => !isPrivateIp(ip));
+  return publicIp || normalized[0];
+}
+
+function getClientIp(req) {
+  const candidates = [];
+
+  for (const header of CLIENT_IP_HEADERS) {
+    candidates.push(...extractForwardedFor(req.headers[header]));
+  }
+
+  candidates.push(...extractForwardedHeader(req.headers.forwarded));
+
+  if (Array.isArray(req.ips) && req.ips.length) {
+    candidates.push(...req.ips);
+  }
+
+  if (req.ip) {
+    candidates.push(req.ip);
+  }
+
+  if (req.socket?.remoteAddress) {
+    candidates.push(req.socket.remoteAddress);
+  }
+
+  return pickClientIp(candidates);
+}
+
 function isPrivateIp(ip) {
   if (!ip) return true;
-  if (ip === '::1' || ip === '127.0.0.1' || ip === '0.0.0.0') return true;
+  if (ip === '::' || ip === '::1' || ip === '127.0.0.1' || ip === '0.0.0.0') return true;
   if (ip.startsWith('10.')) return true;
   if (ip.startsWith('192.168.')) return true;
   if (ip.startsWith('169.254.')) return true;
@@ -46,6 +112,12 @@ function isPrivateIp(ip) {
   }
   if (ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80:')) return true;
   return false;
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function getDeviceSignature(req) {
@@ -71,7 +143,12 @@ async function lookupGeo(rawIp) {
   }
 
   try {
-    const response = await fetch(`https://ipwho.is/${encodeURIComponent(rawIp)}`);
+    const response = await fetch(`https://ipwho.is/${encodeURIComponent(rawIp)}`, {
+      headers: {
+        'User-Agent': 'discord-verify-bot/1.0',
+        Accept: 'application/json'
+      }
+    });
     if (!response.ok) return null;
     const data = await response.json();
     if (!data || data.success === false) return null;
@@ -80,8 +157,8 @@ async function lookupGeo(rawIp) {
       countryCode: data.country_code || 'XX',
       region: data.region || 'Unknown',
       city: data.city || 'Unknown',
-      latitude: typeof data.latitude === 'number' ? data.latitude : null,
-      longitude: typeof data.longitude === 'number' ? data.longitude : null,
+      latitude: toNumber(data.latitude),
+      longitude: toNumber(data.longitude),
       isp: data.connection?.isp || 'Unknown',
       org: data.connection?.org || 'Unknown',
       asn: data.connection?.asn || 'Unknown',
@@ -91,7 +168,12 @@ async function lookupGeo(rawIp) {
   }
 
   try {
-    const fallback = await fetch(`https://ipapi.co/${encodeURIComponent(rawIp)}/json/`);
+    const fallback = await fetch(`https://ipapi.co/${encodeURIComponent(rawIp)}/json/`, {
+      headers: {
+        'User-Agent': 'discord-verify-bot/1.0',
+        Accept: 'application/json'
+      }
+    });
     if (!fallback.ok) return null;
     const data = await fallback.json();
     if (data?.error) return null;
@@ -100,8 +182,8 @@ async function lookupGeo(rawIp) {
       countryCode: data.country_code || 'XX',
       region: data.region || 'Unknown',
       city: data.city || 'Unknown',
-      latitude: typeof data.latitude === 'number' ? data.latitude : null,
-      longitude: typeof data.longitude === 'number' ? data.longitude : null,
+      latitude: toNumber(data.latitude),
+      longitude: toNumber(data.longitude),
       isp: data.org || 'Unknown',
       org: data.org || 'Unknown',
       asn: data.asn || 'Unknown',
